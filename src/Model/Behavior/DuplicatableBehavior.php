@@ -232,6 +232,10 @@ class DuplicatableBehavior extends Behavior
 
             return;
         }
+        
+        if ($associated === null) {
+            return;
+        }
 
         foreach ($associated as $e) {
             if (!empty($parts)) {
@@ -265,6 +269,10 @@ class DuplicatableBehavior extends Behavior
         if ($entity->{$prop} instanceof EntityInterface) {
             $this->_drillDownEntity($action, $entity->{$prop}, $parts, $value);
 
+            return;
+        }
+        
+        if ($associated === null) {
             return;
         }
 
