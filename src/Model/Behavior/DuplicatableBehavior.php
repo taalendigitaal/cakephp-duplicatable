@@ -272,7 +272,7 @@ class DuplicatableBehavior extends Behavior
             return;
         }
         
-        if ($associated === null) {
+        if ($entity->{$prop} === null) {
             return;
         }
 
