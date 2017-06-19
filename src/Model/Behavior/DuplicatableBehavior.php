@@ -37,8 +37,10 @@ class DuplicatableBehavior extends Behavior
         'set' => [],
         'prepend' => [],
         'append' => [],
-        'saveOptions' => []
+        'saveOptions' => ['atomic' => false]
     ];
+    
+    protected $_duplicatedEntities = [];
 
     /**
      * Duplicate record.
@@ -48,7 +50,23 @@ class DuplicatableBehavior extends Behavior
      */
     public function duplicate($id)
     {
-        return $this->_table->save($this->duplicateEntity($id), $this->config('saveOptions') + ['associated' => $this->config('contain')]);
+        $this->_duplicatedEntities = [];
+        $duplicate = $this->duplicateEntity($id);
+        foreach ($this->_duplicatedEntities as $duplicateEntities) {
+            $eventName = 'Table.' . $duplicateEntities['new']->source() . '.beforeDuplicate';
+            $event = new \Cake\Event\Event($eventName, $duplicateEntities['new'], $duplicateEntities);
+            TableRegistry::get($duplicateEntities['new']->source())->eventManager()->dispatch($event);
+        }
+        $return = $this->_table->save($duplicate, $this->config('saveOptions') + ['associated' => $this->config('contain')]);
+        if (!$return) {
+            return $return;
+        }
+        foreach ($this->_duplicatedEntities as $duplicateEntities) {
+            $eventName = 'Table.' . $duplicateEntities['new']->source() . '.afterDuplicate';
+            $event = new \Cake\Event\Event($eventName, $duplicateEntities['new'], $duplicateEntities);
+            TableRegistry::get($duplicateEntities['new']->source())->eventManager()->dispatch($event);
+        }
+        return $duplicate;
     }
 
     /**
@@ -72,7 +90,7 @@ class DuplicatableBehavior extends Behavior
         }
 
         $entity = $query->where([$this->_table->alias() . '.id' => $id])->firstOrFail();
-
+        
         // process entity
         foreach ($this->config('contain') as $contain) {
             $parts = explode('.', $contain);
@@ -179,6 +197,7 @@ class DuplicatableBehavior extends Behavior
      */
     protected function _modifyEntity(EntityInterface $entity, $object)
     {
+        $originalEntity = clone $entity;
         // belongs to many is tricky
         if ($object instanceof BelongsToMany) {
             unset($entity->_joinData);
@@ -201,6 +220,7 @@ class DuplicatableBehavior extends Behavior
 
         // set as new
         $entity->isNew(true);
+        $this->_duplicatedEntities[] = ['original' => $originalEntity, 'new' => $entity];
     }
 
     /**
